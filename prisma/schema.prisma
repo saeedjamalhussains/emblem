@@ -1,0 +1,248 @@
+// Curated merchandise marketplace — data model.
+// SQLite for local development; switch `provider` to "postgresql" for deployment.
+// Status-like fields are plain strings (see src/lib/constants.ts) so the schema
+// stays portable across both databases. All money is stored in paise (Int).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String     @id @default(cuid())
+  email        String     @unique
+  name         String
+  passwordHash String
+  role         String     @default("CUSTOMER") // CUSTOMER | SELLER | ADMIN
+  createdAt    DateTime   @default(now())
+  sessions     Session[]
+  seller       Seller?
+  cartItems    CartItem[]
+  orders       Order[]
+}
+
+model Session {
+  id        String   @id // random token stored in the cookie
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+
+  @@index([userId])
+}
+
+// ---------- Seller admission ----------
+
+model SellerApplication {
+  id                 String      @id @default(cuid())
+  applicantName      String
+  email              String
+  businessName       String
+  gstin              String?
+  pan                String?
+  description        String
+  categories         String // comma-separated category names the applicant intends to sell
+  portfolioUrl       String?
+  authorizationNotes String? // identities they claim the right to represent, and evidence
+  status             String      @default("SUBMITTED") // SUBMITTED | NEEDS_INFO | APPROVED | REJECTED
+  adminNote          String?
+  createdAt          DateTime    @default(now())
+  reviewedAt         DateTime?
+  invitation         Invitation?
+  seller             Seller?
+}
+
+model Invitation {
+  id            String            @id @default(cuid())
+  token         String            @unique
+  applicationId String            @unique
+  application   SellerApplication @relation(fields: [applicationId], references: [id])
+  email         String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime          @default(now())
+}
+
+model Seller {
+  id             String                  @id @default(cuid())
+  userId         String                  @unique
+  user           User                    @relation(fields: [userId], references: [id])
+  applicationId  String?                 @unique
+  application    SellerApplication?      @relation(fields: [applicationId], references: [id])
+  storeName      String
+  slug           String                  @unique
+  description    String
+  status         String                  @default("ACTIVE") // ACTIVE | SUSPENDED | CLOSED
+  tier           Int                     @default(1) // subscription tier; all sellers start at 1
+  activatedAt    DateTime                @default(now())
+  products       Product[]
+  authorizations IdentityAuthorization[]
+  sellerOrders   SellerOrder[]
+}
+
+// ---------- Identity and category ----------
+
+model Identity {
+  id             String                  @id @default(cuid())
+  slug           String                  @unique
+  name           String
+  type           String // BRAND | TEAM | CREATOR | MUSIC | GAMING | COMMUNITY
+  description    String
+  color          String // placeholder emblem colour until logo uploads exist
+  products       Product[]
+  authorizations IdentityAuthorization[]
+}
+
+// A seller's right to sell merchandise representing an identity.
+model IdentityAuthorization {
+  id         String    @id @default(cuid())
+  sellerId   String
+  seller     Seller    @relation(fields: [sellerId], references: [id])
+  identityId String
+  identity   Identity  @relation(fields: [identityId], references: [id])
+  evidence   String
+  status     String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  adminNote  String?
+  createdAt  DateTime  @default(now())
+  reviewedAt DateTime?
+
+  @@unique([sellerId, identityId])
+}
+
+model Category {
+  id       String    @id @default(cuid())
+  slug     String    @unique
+  name     String
+  products Product[]
+}
+
+model Product {
+  id             String      @id @default(cuid())
+  sellerId       String
+  seller         Seller      @relation(fields: [sellerId], references: [id])
+  identityId     String
+  identity       Identity    @relation(fields: [identityId], references: [id])
+  categoryId     String
+  category       Category    @relation(fields: [categoryId], references: [id])
+  title          String
+  description    String
+  pricePaise     Int
+  stock          Int
+  customizable   Boolean     @default(false)
+  // JSON: { "text": { "label": string, "maxLength": number } | null, "colors": string[] }
+  customOptions  String?
+  status         String      @default("PENDING_REVIEW") // PENDING_REVIEW | APPROVED | CHANGES_REQUESTED | REJECTED
+  moderationNote String?
+  createdAt      DateTime    @default(now())
+  cartItems      CartItem[]
+  orderItems     OrderItem[]
+
+  @@index([status, createdAt])
+  @@index([sellerId])
+  @@index([identityId])
+  @@index([categoryId])
+}
+
+// ---------- Shopping ----------
+
+model CartItem {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product  @relation(fields: [productId], references: [id])
+  quantity      Int
+  customization String? // JSON: { "text"?: string, "color"?: string }
+  createdAt     DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Order {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  totalPaise   Int
+  paymentRef   String // payment provider reference (test mode)
+  shipName     String
+  shipAddress  String
+  shipPhone    String
+  createdAt    DateTime      @default(now())
+  sellerOrders SellerOrder[]
+
+  @@index([userId, createdAt])
+}
+
+// One customer order is split into one SellerOrder per seller.
+model SellerOrder {
+  id            String      @id @default(cuid())
+  orderId       String
+  order         Order       @relation(fields: [orderId], references: [id])
+  sellerId      String
+  seller        Seller      @relation(fields: [sellerId], references: [id])
+  subtotalPaise Int
+  status        String      @default("PLACED") // PLACED | DISPATCHED | DELIVERED | CANCELLED
+  trackingRef   String?
+  dispatchedAt  DateTime?
+  deliveredAt   DateTime?
+  items         OrderItem[]
+
+  @@index([sellerId, status])
+  @@index([orderId])
+}
+
+model OrderItem {
+  id             String      @id @default(cuid())
+  sellerOrderId  String
+  sellerOrder    SellerOrder @relation(fields: [sellerOrderId], references: [id])
+  productId      String
+  product        Product     @relation(fields: [productId], references: [id])
+  title          String // snapshot at time of purchase
+  unitPricePaise Int
+  quantity       Int
+  customization  String?
+
+  @@index([sellerOrderId])
+}
+
+// ---------- Double-entry ledger ----------
+// Every LedgerTransaction's entries must sum to zero debits minus credits.
+// Accounts are strings, e.g. "gateway:clearing", "seller:<id>:payable",
+// "seller:<id>:reserve", "platform:subscription_revenue".
+
+model LedgerTransaction {
+  id        String        @id @default(cuid())
+  kind      String // CUSTOMER_PAYMENT | DELIVERY_SPLIT | RESERVE_RELEASE | SETTLEMENT | REFUND | SUBSCRIPTION
+  reference String // order / seller-order / seller id this transaction relates to
+  memo      String
+  createdAt DateTime      @default(now())
+  entries   LedgerEntry[]
+
+  @@index([createdAt])
+}
+
+model LedgerEntry {
+  id            String            @id @default(cuid())
+  transactionId String
+  transaction   LedgerTransaction @relation(fields: [transactionId], references: [id])
+  account       String
+  debitPaise    Int               @default(0)
+  creditPaise   Int               @default(0)
+
+  @@index([account])
+  @@index([transactionId])
+}
+
+// ---------- Audit ----------
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  target    String
+  detail    String?
+  createdAt DateTime @default(now())
+}

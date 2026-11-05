@@ -1,26 +1,109 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/*
+ * Visual language adapted from the "Fashion E-commerce Website" Figma community kit:
+ * white canvas, black type, regular weights, square corners, light-grey product tiles,
+ * outlined pill chips and solid black buttons. A dark variant follows the OS setting.
+ */
+@theme {
+  --color-bg: #ffffff;
+  --color-fg: #000000;
+  --color-muted: #565656;
+  --color-line: #dddddd;
+  --color-tile: #f5f4f4; /* product / identity image tiles */
+  --color-band: #f8f9fa; /* editorial bands and footer */
+  --color-surface: #ffffff; /* cards and inputs */
+  --color-surface-2: #f5f4f4;
+  --color-accent: #000000;
+  --color-on-accent: #ffffff;
+  --color-ok: #15803d;
+  --color-warn: #b45309;
+  --color-bad: #b91c1c;
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-bg: #0b0b0b;
+    --color-fg: #f5f5f5;
+    --color-muted: #a3a3a3;
+    --color-line: #2a2a2a;
+    --color-tile: #161616;
+    --color-band: #111111;
+    --color-surface: #0b0b0b;
+    --color-surface-2: #161616;
+    --color-accent: #f5f5f5;
+    --color-on-accent: #0b0b0b;
+    --color-ok: #4ade80;
+    --color-warn: #fbbf24;
+    --color-bad: #f87171;
   }
 }
 
+html {
+  color-scheme: light dark;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-fg);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+/* Horizontal discovery rows */
+.row-scroll {
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  /* Snap to the padded edge, not the container edge, so rows keep their gutter. */
+  scroll-padding-inline: 1rem;
+}
+@media (min-width: 40rem) {
+  .row-scroll {
+    scroll-padding-inline: 2rem;
+  }
+}
+.row-scroll::-webkit-scrollbar {
+  display: none;
+}
+.row-scroll > * {
+  scroll-snap-align: start;
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 text-[13px] transition disabled:opacity-40;
+}
+
+@utility btn-primary {
+  @apply btn bg-accent text-on-accent hover:opacity-85;
+}
+
+@utility btn-ghost {
+  @apply btn border border-fg text-fg hover:bg-fg hover:text-bg;
+}
+
+@utility btn-danger {
+  @apply btn border border-bad text-bad hover:bg-bad hover:text-white;
+}
+
+@utility input {
+  @apply w-full border border-line bg-surface px-3 py-2.5 text-[13px] text-fg placeholder:text-muted/70 focus:border-fg focus:outline-none;
+}
+
+@utility label {
+  @apply mb-1.5 block text-[11px] tracking-[0.06em] text-muted uppercase;
+}
+
+@utility card {
+  @apply rounded-[4px] border border-line bg-surface;
+}
+
+/* Outlined chip, as used for the kit's category filters. */
+@utility pill {
+  @apply inline-flex items-center rounded-full border border-fg/80 px-3.5 py-1 text-[13px] text-fg;
+}
+
+@utility eyebrow {
+  @apply text-[11px] tracking-[0.06em] text-muted uppercase;
 }
